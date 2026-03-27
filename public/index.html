@@ -263,14 +263,14 @@ function IngredientIQ() {
   const [inputValue, setInputValue] = useState("");
   const [toast, setToast] = useState("");
   const [userStats, setUserStats] = useState({
-  const [isListening, setIsListening] = React.useState(false);
-  const [imgRecognizing, setImgRecognizing] = React.useState(false);
-  const fileInputRef = React.useRef(null);
-  const cameraInputRef = React.useRef(null);
     xp:0, recipesCooked:0, streak:0, lastCookDate:null, level:0,
     cuisineCount:{}, earnedBadges:[], ingredientFreq:{}, dietaryPrefs:{},
     flavorMood:null, userId:null, avatar:null, name:"Chef"
   });
+  const [isListening, setIsListening] = React.useState(false);
+  const [imgRecognizing, setImgRecognizing] = React.useState(false);
+  const fileInputRef = React.useRef(null);
+  const cameraInputRef = React.useRef(null);
   const [currentRecipe, setCurrentRecipe] = useState(null);
   const [matchedRecipes, setMatchedRecipes] = useState([]);
   const [resultPage, setResultPage] = useState(0);
