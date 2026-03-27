@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>IngredientIQ - Smart Recipe Matcher</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f0f13;--surface:#1a1a24;--surface2:#252536;--surface3:#32324a;
+  --primary:#7c5cfc;--primary-light:#9b82ff;--primary-dark:#5a3fd4;
+  --accent:#ff6b6b;--accent2:#ffd93d;--accent3:#6bcb77;--accent4:#4d96ff;
+  --text:#f0f0f5;--text2:#a0a0b8;--text3:#6a6a82;
+  --radius:16px;--radius-sm:10px;--radius-xs:6px;
+}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+#root{min-height:100%;display:flex;flex-direction:column}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes confetti{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+@keyframes xpPop{0%{transform:scale(0) translateY(0);opacity:1}50%{transform:scale(1.2) translateY(-30px);opacity:1}100%{transform:scale(1) translateY(-60px);opacity:0}}
+@keyframes levelUp{0%{transform:scale(0.5);opacity:0}50%{transform:scale(1.3);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes streakFire{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.2)}}
+
+.fade-up{animation:fadeUp .5s ease both}
+.fade-in{animation:fadeIn .3s ease both}
+.slide-in{animation:slideIn .4s ease both}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:4px}
+
+/* Toast */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;
+  padding:12px 24px;border-radius:30px;font-weight:600;z-index:1000;animation:fadeUp .4s ease both;
+  box-shadow:0 8px 32px rgba(124,92,252,.4);font-size:14px;pointer-events:none}
+
+/* XP Popup */
+.xp-pop{position:fixed;font-size:24px;font-weight:900;color:var(--accent2);z-index:999;
+  pointer-events:none;animation:xpPop 1.5s ease both;text-shadow:0 2px 10px rgba(255,217,61,.5)}
+
+/* Level Up Overlay */
+.level-up-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:2000;
+  display:flex;align-items:center;justify-content:center;animation:fadeIn .3s ease}
+.level-up-card{background:linear-gradient(135deg,var(--primary-dark),var(--primary));
+  border-radius:24px;padding:40px;text-align:center;animation:levelUp .6s ease both;
+  box-shadow:0 20px 60px rgba(124,92,252,.5);max-width:320px;width:90%}
+.level-up-card h2{font-size:14px;text-transform:uppercase;letter-spacing:3px;opacity:.7;margin-bottom:8px}
+.level-up-card .level-num{font-size:72px;font-weight:900;line-height:1}
+.level-up-card .level-title{font-size:22px;font-weight:700;margin:8px 0 16px}
+.level-up-card button{background:#fff;color:var(--primary-dark);border:none;padding:12px 32px;
+  border-radius:30px;font-weight:700;font-size:16px;cursor:pointer}
+
+/* Confetti */
+.confetti-piece{position:fixed;top:-10px;width:10px;height:10px;z-index:2001;pointer-events:none;
+  animation:confetti 3s ease-out both;border-radius:2px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo} = React;
+
+// ============================================
+// DATA & CONSTANTS
+// ============================================
+const LEVELS = [
+  {name:"Kitchen Newbie",xp:0,emoji:"🥄"},
+  {name:"Sous Chef",xp:100,emoji:"🔪"},
+  {name:"Line Cook",xp:300,emoji:"🍳"},
+  {name:"Flavor Explorer",xp:600,emoji:"🌶️"},
+  {name:"Recipe Hunter",xp:1000,emoji:"🗺️"},
+  {name:"Cuisine Hopper",xp:1500,emoji:"✈️"},
+  {name:"Taste Architect",xp:2200,emoji:"🏛️"},
+  {name:"Gourmet Guru",xp:3000,emoji:"👨‍🍳"},
+  {name:"Master Chef",xp:4000,emoji:"⭐"},
+  {name:"Culinary Legend",xp:5500,emoji:"👑"}
+];
+
+const BADGES = [
+  {id:"first_cook",name:"First Dish",desc:"Cook your first recipe",icon:"🍽️",check:s=>s.recipesCooked>=1},
+  {id:"five_cook",name:"Getting Started",desc:"Cook 5 recipes",icon:"🔥",check:s=>s.recipesCooked>=5},
+  {id:"ten_cook",name:"On a Roll",desc:"Cook 10 recipes",icon:"🎯",check:s=>s.recipesCooked>=10},
+  {id:"streak_3",name:"Hot Streak",desc:"3-day cooking streak",icon:"⚡",check:s=>s.streak>=3},
+  {id:"streak_7",name:"Week Warrior",desc:"7-day cooking streak",icon:"💪",check:s=>s.streak>=7},
+  {id:"world_3",name:"World Taster",desc:"Cook from 3 cuisines",icon:"🌍",check:s=>Object.keys(s.cuisineCount||{}).length>=3},
+  {id:"world_6",name:"Globe Trotter",desc:"Cook from 6 cuisines",icon:"🗺️",check:s=>Object.keys(s.cuisineCount||{}).length>=6},
+  {id:"italian_5",name:"Mamma Mia",desc:"Cook 5 Italian dishes",icon:"🇮🇹",check:s=>(s.cuisineCount?.Italian||0)>=5},
+  {id:"mexican_5",name:"Fiesta Chef",desc:"Cook 5 Mexican dishes",icon:"🇲🇽",check:s=>(s.cuisineCount?.Mexican||0)>=5},
+  {id:"asian_5",name:"Wok Star",desc:"Cook 5 Asian dishes",icon:"🥢",check:s=>(s.cuisineCount?.Asian||0)>=5},
+  {id:"search_10",name:"Ingredient Detective",desc:"Search 10 times",icon:"🔎",check:s=>s.searches>=10},
+  {id:"voice_use",name:"Voice Commander",desc:"Use voice input",icon:"🎤",check:s=>s.usedVoice},
+  {id:"photo_use",name:"Snap Chef",desc:"Use photo ingredient input",icon:"📸",check:s=>s.usedPhoto},
+];
+
+const CUISINE_COLORS = {
+  Italian:"#e74c3c",Mexican:"#e67e22",Asian:"#2ecc71",Indian:"#f39c12",
+  American:"#3498db",Mediterranean:"#1abc9c",Southern:"#e91e63","Comfort Food":"#9b59b6",Other:"#95a5a6"
+};
+const CUISINE_EMOJIS = {
+  Italian:"🍝",Mexican:"🌮",Asian:"🥡",Indian:"🍛",American:"🍔",
+  Mediterranean:"🫒",Southern:"🍗","Comfort Food":"🧁",Other:"🍴"
+};
+
+// Common ingredients for quick-add and photo tagging
+const COMMON_INGREDIENTS = [
+  "chicken","beef","pork","fish","shrimp","tofu","eggs","rice","pasta","bread",
+  "potato","tomato","onion","garlic","pepper","carrot","broccoli","spinach","corn","mushroom",
+  "cheese","milk","cream","butter","olive oil","flour","sugar","salt","lemon","lime",
+  "beans","chickpeas","avocado","cucumber","lettuce","celery","bacon","sausage","turkey","salmon",
+  "soy sauce","vinegar","honey","mustard","mayo","ketchup","hot sauce","salsa","peanut butter","chocolate"
+];
+
+// ============================================
+// APP COMPONENT
+// ============================================
+function App() {
+  const [recipes, setRecipes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [screen, setScreen] = useState("home"); // home, input, results, recipe, profile, badges
+  const [ingredients, setIngredients] = useState([]);
+  const [inputText, setInputText] = useState("");
+  const [selectedCuisine, setSelectedCuisine] = useState(null);
+  const [matchedRecipes, setMatchedRecipes] = useState([]);
+  const [currentRecipe, setCurrentRecipe] = useState(null);
+  const [resultPage, setResultPage] = useState(0);
+  const [toast, setToast] = useState(null);
+  const [xpPops, setXpPops] = useState([]);
+  const [levelUpData, setLevelUpData] = useState(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [suggestedCuisines, setSuggestedCuisines] = useState([]);
+  const [newBadge, setNewBadge] = useState(null);
+
+  // User state (in-memory, persists during session)
+  const [userStats, setUserStats] = useState({
+    xp:0, recipesCooked:0, streak:0, lastCookDate:null,
+    cuisineCount:{}, ingredientFreq:{}, searches:0,
+    usedVoice:false, usedPhoto:false, earnedBadges:[],
+    favoriteRecipes:[], cookHistory:[]
+  });
+
+  const inputRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // Load recipes
+  useEffect(() => {
+    fetch('recipes_data.json')
+      .then(r => r.json())
+      .then(data => { setRecipes(data); setLoading(false); })
+      .catch(() => {
+        // Try relative paths
+        fetch('./recipes_data.json')
+          .then(r => r.json())
+          .then(data => { setRecipes(data); setLoading(false); })
+          .catch(e => { console.error(e); setLoading(false); });
+      });
+  }, []);
+
+  // Build ingredient index for fast lookup
+  const ingredientIndex = useMemo(() => {
+    const idx = {};
+    recipes.forEach((r, i) => {
+      (r.n || []).forEach(ing => {
+        const key = ing.toLowerCase().trim();
+        if (!idx[key]) idx[key] = [];
+        idx[key].push(i);
+      });
+    });
+    return idx;
+  }, [recipes]);
+
+  // All unique ingredients from dataset
+  const allIngredients = useMemo(() => {
+    const s = new Set();
+    recipes.forEach(r => (r.n||[]).forEach(i => s.add(i.toLowerCase().trim())));
+    return [...s].sort();
+  }, [recipes]);
+
+  // ---- Helpers ----
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const addXP = (amount, x, y) => {
+    const oldLevel = getLevel(userStats.xp);
+    const newXP = userStats.xp + amount;
+    const newLevel = getLevel(newXP);
+
+    setUserStats(prev => ({...prev, xp: newXP}));
+
+    const id = Date.now() + Math.random();
+    setXpPops(prev => [...prev, {id, amount, x: x||window.innerWidth/2, y: y||window.innerHeight/2}]);
+    setTimeout(() => setXpPops(prev => prev.filter(p => p.id !== id)), 1500);
+
+    if (newLevel.name !== oldLevel.name) {
+      setTimeout(() => setLevelUpData(newLevel), 500);
+    }
+  };
+
+  const getLevel = (xp) => {
+    let lvl = LEVELS[0];
+    for (const l of LEVELS) {
+      if (xp >= l.xp) lvl = l;
+      else break;
+    }
+    return lvl;
+  };
+
+  const getLevelIndex = (xp) => {
+    let idx = 0;
+    for (let i = 0; i < LEVELS.length; i++) {
+      if (xp >= LEVELS[i].xp) idx = i;
+      else break;
+    }
+    return idx;
+  };
+
+  const getXPProgress = () => {
+    const idx = getLevelIndex(userStats.xp);
+    const current = LEVELS[idx].xp;
+    const next = idx < LEVELS.length - 1 ? LEVELS[idx+1].xp : LEVELS[idx].xp;
+    if (next === current) return 100;
+    return ((userStats.xp - current) / (next - current)) * 100;
+  };
+
+  const checkBadges = (stats) => {
+    const newBadges = [];
+    BADGES.forEach(b => {
+      if (!stats.earnedBadges.includes(b.id) && b.check(stats)) {
+        newBadges.push(b.id);
+      }
+    });
+    if (newBadges.length > 0) {
+      const updatedBadges = [...stats.earnedBadges, ...newBadges];
+      setUserStats(prev => ({...prev, earnedBadges: updatedBadges}));
+      const badge = BADGES.find(b => b.id === newBadges[0]);
+      setNewBadge(badge);
+      setTimeout(() => setNewBadge(null), 3000);
+    }
+  };
+
+  // ---- Ingredient Input ----
+  const addIngredient = (ing) => {
+    const clean = ing.toLowerCase().trim();
+    if (clean && !ingredients.includes(clean)) {
+      setIngredients(prev => [...prev, clean]);
+    }
+    setInputText("");
+  };
+
+  const removeIngredient = (ing) => {
+    setIngredients(prev => prev.filter(i => i !== ing));
+  };
+
+  // Voice input
+  const toggleVoice = () => {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      showToast("Voice not supported in this browser");
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      // Parse spoken ingredients
+      const parts = text.split(/,|and|\band\b/i).map(s => s.trim().toLowerCase()).filter(Boolean);
+      parts.forEach(p => addIngredient(p));
+      setUserStats(prev => ({...prev, usedVoice: true}));
+      showToast(`Added: ${parts.join(', ')}`);
+    };
+    recognition.onerror = () => { setIsListening(false); };
+    recognition.onend = () => { setIsListening(false); };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  // ---- Recipe Matching ----
+  const findRecipes = (cuisine) => {
+    const userIngs = ingredients.map(i => i.toLowerCase().trim());
+
+    // Score each recipe
+    let scored = recipes.map((r, idx) => {
+      const recipeIngs = (r.n || []).map(i => i.toLowerCase().trim());
+      let matchCount = 0;
+      userIngs.forEach(ui => {
+        if (recipeIngs.some(ri => ri.includes(ui) || ui.includes(ri))) matchCount++;
+      });
+      const matchRatio = matchCount / recipeIngs.length;
+      const coverageRatio = matchCount / userIngs.length;
+      // Weighted score: prioritize recipes where user has most of the ingredients
+      const score = (matchRatio * 0.6 + coverageRatio * 0.4) * matchCount;
+      return {...r, score, matchCount, totalIngs: recipeIngs.length, idx};
+    }).filter(r => r.matchCount >= 1);
+
+    // Apply cuisine filter
+    if (cuisine && cuisine !== "All") {
+      scored = scored.filter(r => r.c === cuisine);
+    }
+
+    // Boost recipes from preferred cuisines (habit learning)
+    const {cuisineCount = {}} = userStats;
+    const totalCooks = Object.values(cuisineCount).reduce((a,b) => a+b, 0) || 1;
+    scored.forEach(r => {
+      const pref = (cuisineCount[r.c] || 0) / totalCooks;
+      r.score *= (1 + pref * 0.3); // slight boost for preferred cuisines
+    });
+
+    // Sort by score, then randomize within similar scores
+    scored.sort((a, b) => b.score - a.score);
+
+    // Add controlled randomization: shuffle within score bands
+    const bands = [];
+    let currentBand = [];
+    let lastScore = null;
+    scored.forEach(r => {
+      if (lastScore !== null && lastScore - r.score > 0.5) {
+        bands.push([...currentBand]);
+        currentBand = [];
+      }
+      currentBand.push(r);
+      lastScore = r.score;
+    });
+    if (currentBand.length) bands.push(currentBand);
+
+    const randomized = [];
+    bands.forEach(band => {
+      for (let i = band.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [band[i], band[j]] = [band[j], band[i]];
+      }
+      randomized.push(...band);
+    });
+
+    return randomized;
+  };
+
+  const doSearch = (cuisine) => {
+    setSelectedCuisine(cuisine);
+    const results = findRecipes(cuisine);
+    setMatchedRecipes(results);
+    setResultPage(0);
+    setScreen("results");
+
+    // Track search
+    setUserStats(prev => {
+      const newStats = {...prev, searches: prev.searches + 1};
+      // Track ingredient frequency
+      const freq = {...prev.ingredientFreq};
+      ingredients.forEach(i => { freq[i] = (freq[i]||0) + 1; });
+      newStats.ingredientFreq = freq;
+      setTimeout(() => checkBadges(newStats), 100);
+      return newStats;
+    });
+    addXP(5);
+  };
+
+  const handleSearch = () => {
+    if (ingredients.length === 0) {
+      showToast("Add some ingredients first!");
+      return;
+    }
+    // Determine which cuisines have matches
+    const cuisineCounts = {};
+    const userIngs = ingredients.map(i => i.toLowerCase());
+    recipes.forEach(r => {
+      const recipeIngs = (r.n||[]).map(i => i.toLowerCase());
+      const hasMatch = userIngs.some(ui => recipeIngs.some(ri => ri.includes(ui) || ui.includes(ri)));
+      if (hasMatch) cuisineCounts[r.c] = (cuisineCounts[r.c]||0) + 1;
+    });
+    const available = Object.entries(cuisineCounts)
+      .filter(([,c]) => c > 0)
+      .sort((a,b) => b[1] - a[1])
+      .map(([name, count]) => ({name, count}));
+    setSuggestedCuisines(available);
+    setScreen("cuisine_pick");
+  };
+
+  const markCooked = (recipe) => {
+    setUserStats(prev => {
+      const stats = {...prev};
+      stats.recipesCooked++;
+      stats.cookHistory = [...(prev.cookHistory||[]), {title: recipe.t, cuisine: recipe.c, date: new Date().toISOString()}];
+
+      // Update cuisine count
+      const cc = {...prev.cuisineCount};
+      cc[recipe.c] = (cc[recipe.c]||0) + 1;
+      stats.cuisineCount = cc;
+
+      // Streak logic
+      const today = new Date().toDateString();
+      const lastDate = prev.lastCookDate;
+      if (!lastDate) {
+        stats.streak = 1;
+      } else if (lastDate === today) {
+        // same day, no change
+      } else {
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+        stats.streak = lastDate === yesterday ? prev.streak + 1 : 1;
+      }
+      stats.lastCookDate = today;
+
+      setTimeout(() => checkBadges(stats), 100);
+      return stats;
+    });
+    addXP(25);
+    showToast("Marked as cooked! +25 XP");
+    spawnConfetti();
+  };
+
+  const spawnConfetti = () => {
+    const colors = ['#7c5cfc','#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#e91e63'];
+    for (let i = 0; i < 30; i++) {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.left = Math.random() * 100 + 'vw';
+      el.style.background = colors[Math.floor(Math.random()*colors.length)];
+      el.style.animationDelay = Math.random() * 0.5 + 's';
+      el.style.animationDuration = (2 + Math.random()*2) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }
+  };
+
+  // ---- Filtered suggestions ----
+  const getSuggestions = () => {
+    if (!inputText || inputText.length < 2) return [];
+    const q = inputText.toLowerCase();
+    return COMMON_INGREDIENTS
+      .filter(i => i.includes(q) && !ingredients.includes(i))
+      .slice(0, 5);
+  };
+
+  // ============================================
+  // SCREENS
+  // ============================================
+
+  // --- LOADING ---
+  if (loading) return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      height:'100vh',gap:16}}>
+      <div style={{width:48,height:48,border:'4px solid var(--surface3)',borderTopColor:'var(--primary)',
+        borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
+      <p style={{color:'var(--text2)',fontSize:14}}>Loading 5,400 recipes...</p>
+    </div>
+  );
+
+  const level = getLevel(userStats.xp);
+  const levelIdx = getLevelIndex(userStats.xp);
+
+  // --- HOME SCREEN ---
+  if (screen === "home") return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+      {toast && <div className="toast">{toast}</div>}
+      {/* Header */}
+      <div style={{padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:800,background:'linear-gradient(135deg,var(--primary-light),var(--accent))',
+            WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>IngredientIQ</h1>
+        </div>
+        <button onClick={()=>setScreen("profile")} style={{background:'var(--surface2)',border:'none',
+          borderRadius:12,padding:'8px 14px',color:'var(--text)',fontSize:13,fontWeight:600,cursor:'pointer',
+          display:'flex',alignItems:'center',gap:6}}>
+          <span>{level.emoji}</span>
+          <span>Lv.{levelIdx+1}</span>
+        </button>
+      </div>
+
+      {/* Hero */}
+      <div className="fade-up" style={{padding:'20px',textAlign:'center',flex:1,display:'flex',
+        flexDirection:'column',justifyContent:'center',gap:24}}>
+        <div style={{fontSize:64,lineHeight:1}}>🧑‍🍳</div>
+        <div>
+          <h2 style={{fontSize:26,fontWeight:800,marginBottom:8}}>What's in your kitchen?</h2>
+          <p style={{color:'var(--text2)',fontSize:15,lineHeight:1.5,maxWidth:300,margin:'0 auto'}}>
+            Tell me your ingredients and I'll find the perfect recipe for you
+          </p>
+        </div>
+
+        {/* Stats Bar */}
+        <div style={{display:'flex',justifyContent:'center',gap:12,flexWrap:'wrap'}}>
+          {[
+            {icon:"🔥",val:userStats.streak,label:"Streak"},
+            {icon:"⭐",val:userStats.xp,label:"XP"},
+            {icon:"🍽️",val:userStats.recipesCooked,label:"Cooked"},
+            {icon:"🏅",val:userStats.earnedBadges.length,label:"Badges"}
+          ].map((s,i) => (
+            <div key={i} style={{background:'var(--surface)',borderRadius:12,padding:'10px 16px',
+              minWidth:70,textAlign:'center'}}>
+              <div style={{fontSize:18}}>{s.icon}</div>
+              <div style={{fontSize:18,fontWeight:800}}>{s.val}</div>
+              <div style={{fontSize:10,color:'var(--text3)',fontWeight:600}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* XP Progress */}
+        <div style={{maxWidth:300,margin:'0 auto',width:'100%'}}>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text3)',marginBottom:4}}>
+            <span>{level.emoji} {level.name}</span>
+            <span>{userStats.xp} XP</span>
+          </div>
+          <div style={{height:6,background:'var(--surface2)',borderRadius:3,overflow:'hidden'}}>
+            <div style={{height:'100%',width:getXPProgress()+'%',background:'linear-gradient(90deg,var(--primary),var(--primary-light))',
+              borderRadius:3,transition:'width .5s ease'}}/>
+          </div>
+        </div>
+
+        {/* Main CTA */}
+        <button onClick={()=>setScreen("input")}
+          style={{background:'linear-gradient(135deg,var(--primary),var(--primary-light))',
+            border:'none',borderRadius:16,padding:'18px 32px',color:'#fff',fontSize:17,fontWeight:700,
+            cursor:'pointer',maxWidth:300,margin:'0 auto',width:'100%',
+            boxShadow:'0 8px 32px rgba(124,92,252,.4)',transition:'transform .2s',position:'relative',overflow:'hidden'}}
+          onMouseDown={e=>e.currentTarget.style.transform='scale(0.97)'}
+          onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
+          Add Ingredients
+        </button>
+
+        {/* Quick Actions */}
+        <div style={{display:'flex',justifyContent:'center',gap:12}}>
+          <button onClick={()=>setScreen("badges")}
+            style={{background:'var(--surface)',border:'none',borderRadius:12,padding:'12px 20px',
+              color:'var(--text2)',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            🏅 Badges
+          </button>
+          <button onClick={()=>setScreen("profile")}
+            style={{background:'var(--surface)',border:'none',borderRadius:12,padding:'12px 20px',
+              color:'var(--text2)',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            📊 My Stats
+          </button>
+        </div>
+
+        {/* Habit Insight */}
+        {userStats.recipesCooked > 0 && (
+          <div className="fade-in" style={{background:'var(--surface)',borderRadius:14,padding:16,
+            maxWidth:300,margin:'0 auto',width:'100%',textAlign:'left'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--text3)',marginBottom:8}}>YOUR TASTE PROFILE</div>
+            {Object.entries(userStats.cuisineCount).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,n]) => (
+              <div key={c} style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                <span>{CUISINE_EMOJIS[c]||'🍴'}</span>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:2}}>
+                    <span style={{fontWeight:600}}>{c}</span><span style={{color:'var(--text3)'}}>{n}x</span>
+                  </div>
+                  <div style={{height:4,background:'var(--surface3)',borderRadius:2,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:((n/Math.max(...Object.values(userStats.cuisineCount)))*100)+'%',
+                      background:CUISINE_COLORS[c]||'#888',borderRadius:2}}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {newBadge && <BadgePopup badge={newBadge} onClose={()=>setNewBadge(null)}/>}
+      {xpPops.map(p=><div key={p.id} className="xp-pop" style={{left:p.x-30,top:p.y}}>+{p.amount} XP</div>)}
+    </div>
+  );
+
+  // --- INPUT SCREEN ---
+  if (screen === "input") return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+      {toast && <div className="toast">{toast}</div>}
+      <div style={{padding:'16px 20px',display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>setScreen("home")} style={{background:'var(--surface2)',border:'none',
+          borderRadius:10,width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+        <h2 style={{fontSize:18,fontWeight:700}}>Add Your Ingredients</h2>
+      </div>
+
+      <div style={{padding:'0 20px',flex:1}}>
+        {/* Input Methods */}
+        <div style={{display:'flex',gap:8,marginBottom:16}}>
+          <button onClick={toggleVoice}
+            style={{flex:1,background:isListening?'var(--accent)':'var(--surface2)',border:'none',
+              borderRadius:12,padding:'14px',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',
+              display:'flex',flexDirection:'column',alignItems:'center',gap:4,
+              animation:isListening?'pulse 1s infinite':'none'}}>
+            <span style={{fontSize:22}}>🎤</span>
+            <span>{isListening?'Listening...':'Voice'}</span>
+          </button>
+          <button onClick={()=>setShowPhotoModal(true)}
+            style={{flex:1,background:'var(--surface2)',border:'none',borderRadius:12,padding:'14px',
+              color:'var(--text)',fontSize:13,fontWeight:600,cursor:'pointer',
+              display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+            <span style={{fontSize:22}}>📸</span><span>Photo</span>
+          </button>
+          <button onClick={()=>inputRef.current?.focus()}
+            style={{flex:1,background:'var(--surface2)',border:'none',borderRadius:12,padding:'14px',
+              color:'var(--text)',fontSize:13,fontWeight:600,cursor:'pointer',
+              display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+            <span style={{fontSize:22}}>⌨️</span><span>Type</span>
+          </button>
+        </div>
+
+        {/* Text Input */}
+        <div style={{position:'relative',marginBottom:16}}>
+          <input ref={inputRef} value={inputText} onChange={e=>setInputText(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&inputText.trim()){addIngredient(inputText);e.preventDefault()}}}
+            placeholder="Type an ingredient..."
+            style={{width:'100%',padding:'14px 16px',background:'var(--surface)',border:'2px solid var(--surface3)',
+              borderRadius:12,color:'var(--text)',fontSize:15,outline:'none',fontFamily:'inherit'}}
+          />
+          {getSuggestions().length > 0 && (
+            <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--surface2)',
+              borderRadius:12,marginTop:4,overflow:'hidden',zIndex:10,
+              boxShadow:'0 8px 24px rgba(0,0,0,.4)'}}>
+              {getSuggestions().map(s => (
+                <button key={s} onClick={()=>addIngredient(s)}
+                  style={{display:'block',width:'100%',padding:'12px 16px',background:'none',
+                    border:'none',borderBottom:'1px solid var(--surface3)',color:'var(--text)',
+                    fontSize:14,textAlign:'left',cursor:'pointer',fontFamily:'inherit'}}
+                  onMouseOver={e=>e.currentTarget.style.background='var(--surface3)'}
+                  onMouseOut={e=>e.currentTarget.style.background='none'}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Current Ingredients */}
+        {ingredients.length > 0 && (
+          <div className="fade-in" style={{marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--text3)',marginBottom:8}}>
+              YOUR INGREDIENTS ({ingredients.length})
+            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+              {ingredients.map(ing => (
+                <span key={ing} className="slide-in"
+                  style={{background:'var(--primary)',borderRadius:20,padding:'8px 14px',fontSize:13,
+                    fontWeight:600,display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}
+                  onClick={()=>removeIngredient(ing)}>
+                  {ing} <span style={{opacity:.6}}>×</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Add */}
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,color:'var(--text3)',marginBottom:8}}>QUICK ADD</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {(() => {
+              // Prioritize frequently used ingredients
+              const freq = userStats.ingredientFreq || {};
+              const sorted = [...COMMON_INGREDIENTS].sort((a,b) => (freq[b]||0) - (freq[a]||0));
+              return sorted.filter(i => !ingredients.includes(i)).slice(0,15).map(ing => (
+                <button key={ing} onClick={()=>addIngredient(ing)}
+                  style={{background:'var(--surface2)',border:'none',borderRadius:20,padding:'7px 12px',
+                    color:'var(--text2)',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:'inherit',
+                    transition:'all .2s'}}
+                  onMouseOver={e=>{e.currentTarget.style.background='var(--surface3)';e.currentTarget.style.color='var(--text)'}}
+                  onMouseOut={e=>{e.currentTarget.style.background='var(--surface2)';e.currentTarget.style.color='var(--text2)'}}>
+                  + {ing} {freq[ing]>0?'⭐':''}
+                </button>
+              ));
+            })()}
+          </div>
+        </div>
+      </div>
+
+      {/* Search Button */}
+      <div style={{padding:20,paddingBottom:32}}>
+        <button onClick={handleSearch}
+          style={{width:'100%',padding:'16px',background:ingredients.length>0?
+            'linear-gradient(135deg,var(--primary),var(--primary-light))':'var(--surface3)',
+            border:'none',borderRadius:14,color:ingredients.length>0?'#fff':'var(--text3)',
+            fontSize:16,fontWeight:700,cursor:ingredients.length>0?'pointer':'default',
+            boxShadow:ingredients.length>0?'0 8px 32px rgba(124,92,252,.3)':'none',fontFamily:'inherit'}}>
+          🔍 Find Recipes ({ingredients.length} ingredient{ingredients.length!==1?'s':''})
+        </button>
+      </div>
+
+      {/* Photo Modal */}
+      {showPhotoModal && (
+        <PhotoTagModal
+          ingredients={ingredients}
+          onAdd={ing=>{addIngredient(ing);setUserStats(prev=>({...prev,usedPhoto:true}))}}
+          onClose={()=>setShowPhotoModal(false)}
+        />
+      )}
+      {xpPops.map(p=><div key={p.id} className="xp-pop" style={{left:p.x-30,top:p.y}}>+{p.amount} XP</div>)}
+    </div>
+  );
+
+  // --- CUISINE PICKER ---
+  if (screen === "cuisine_pick") return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+      {toast && <div className="toast">{toast}</div>}
+      <div style={{padding:'16px 20px',display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>setScreen("input")} style={{background:'var(--surface2)',border:'none',
+          borderRadius:10,width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+        <h2 style={{fontSize:18,fontWeight:700}}>What are you craving?</h2>
+      </div>
+
+      <div style={{padding:'0 20px',flex:1}}>
+        <p style={{color:'var(--text2)',fontSize:14,marginBottom:20}}>
+          Based on your {ingredients.length} ingredients, here's what we can make:
+        </p>
+
+        {/* All option */}
+        <button onClick={()=>doSearch("All")} className="fade-up"
+          style={{width:'100%',background:'linear-gradient(135deg,var(--primary-dark),var(--primary))',
+            border:'none',borderRadius:14,padding:'18px 20px',marginBottom:12,cursor:'pointer',
+            display:'flex',alignItems:'center',gap:14,textAlign:'left',color:'#fff'}}>
+          <span style={{fontSize:32}}>🎲</span>
+          <div>
+            <div style={{fontWeight:700,fontSize:16}}>Surprise Me!</div>
+            <div style={{fontSize:12,opacity:.7}}>All cuisines, randomized</div>
+          </div>
+          <span style={{marginLeft:'auto',fontSize:13,opacity:.7}}>
+            {suggestedCuisines.reduce((a,c)=>a+c.count,0)} recipes
+          </span>
+        </button>
+
+        {/* Cuisine options */}
+        {suggestedCuisines.map((c, i) => (
+          <button key={c.name} onClick={()=>doSearch(c.name)}
+            className="fade-up" style={{width:'100%',background:'var(--surface)',
+              border:'none',borderRadius:14,padding:'16px 20px',marginBottom:8,cursor:'pointer',
+              display:'flex',alignItems:'center',gap:14,textAlign:'left',color:'var(--text)',
+              animationDelay:(i*0.05)+'s',transition:'background .2s'}}
+            onMouseOver={e=>e.currentTarget.style.background='var(--surface2)'}
+            onMouseOut={e=>e.currentTarget.style.background='var(--surface)'}>
+            <span style={{fontSize:28,width:40,textAlign:'center'}}>{CUISINE_EMOJIS[c.name]||'🍴'}</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:15}}>{c.name}</div>
+              <div style={{fontSize:12,color:'var(--text3)'}}>{c.count} matching recipes</div>
+            </div>
+            {(userStats.cuisineCount[c.name]||0)>0 && (
+              <span style={{fontSize:11,background:'var(--surface3)',borderRadius:8,padding:'3px 8px',
+                color:'var(--text2)'}}>Cooked {userStats.cuisineCount[c.name]}x</span>
+            )}
+            <span style={{color:'var(--text3)',fontSize:18}}>›</span>
+          </button>
+        ))}
+      </div>
+      {xpPops.map(p=><div key={p.id} className="xp-pop" style={{left:p.x-30,top:p.y}}>+{p.amount} XP</div>)}
+    </div>
+  );
+
+  // --- RESULTS SCREEN ---
+  if (screen === "results") {
+    const pageSize = 3;
+    const pageRecipes = matchedRecipes.slice(resultPage * pageSize, (resultPage+1) * pageSize);
+    const hasMore = (resultPage+1) * pageSize < matchedRecipes.length;
+
+    return (
+      <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+        {toast && <div className="toast">{toast}</div>}
+        <div style={{padding:'16px 20px',display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>setScreen("cuisine_pick")} style={{background:'var(--surface2)',border:'none',
+            borderRadius:10,width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+          <div>
+            <h2 style={{fontSize:18,fontWeight:700}}>
+              {selectedCuisine==="All"?"All Recipes":selectedCuisine} {CUISINE_EMOJIS[selectedCuisine]||'🎲'}
+            </h2>
+            <p style={{fontSize:12,color:'var(--text3)'}}>
+              {matchedRecipes.length} matches found
+            </p>
+          </div>
+        </div>
+
+        <div style={{padding:'0 20px',flex:1}}>
+          {pageRecipes.length === 0 ? (
+            <div style={{textAlign:'center',padding:40}}>
+              <div style={{fontSize:48,marginBottom:12}}>😅</div>
+              <p style={{color:'var(--text2)'}}>No recipes found. Try different ingredients!</p>
+            </div>
+          ) : (
+            pageRecipes.map((r, i) => (
+              <div key={r.t+i} className="fade-up" style={{animationDelay:(i*0.1)+'s',
+                background:'var(--surface)',borderRadius:16,padding:18,marginBottom:12,
+                cursor:'pointer',transition:'transform .2s'}}
+                onClick={()=>{setCurrentRecipe(r);setScreen("recipe")}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:700,color:CUISINE_COLORS[r.c]||'#888',
+                      textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>
+                      {CUISINE_EMOJIS[r.c]||'🍴'} {r.c}
+                    </div>
+                    <h3 style={{fontSize:16,fontWeight:700,lineHeight:1.3}}>{r.t}</h3>
+                  </div>
+                  <div style={{background:'var(--surface2)',borderRadius:10,padding:'6px 10px',
+                    textAlign:'center',marginLeft:12,minWidth:50}}>
+                    <div style={{fontSize:18,fontWeight:800,color:'var(--accent3)'}}>{r.matchCount}</div>
+                    <div style={{fontSize:9,color:'var(--text3)'}}>of {r.totalIngs}</div>
+                  </div>
+                </div>
+                {/* Ingredient match visualization */}
+                <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                  {(r.n||[]).slice(0,8).map(ing => {
+                    const matched = ingredients.some(ui => ing.includes(ui) || ui.includes(ing));
+                    return (
+                      <span key={ing} style={{fontSize:11,padding:'3px 8px',borderRadius:6,fontWeight:500,
+                        background:matched?'rgba(107,203,119,.15)':'var(--surface2)',
+                        color:matched?'var(--accent3)':'var(--text3)',
+                        border:matched?'1px solid rgba(107,203,119,.3)':'1px solid transparent'}}>
+                        {matched?'✓ ':''}{ing}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* Pagination */}
+          {(hasMore || resultPage > 0) && (
+            <div style={{display:'flex',gap:8,justifyContent:'center',padding:'16px 0'}}>
+              {resultPage > 0 && (
+                <button onClick={()=>setResultPage(p=>p-1)}
+                  style={{background:'var(--surface2)',border:'none',borderRadius:10,padding:'10px 20px',
+                    color:'var(--text)',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                  ← Previous
+                </button>
+              )}
+              {hasMore && (
+                <button onClick={()=>setResultPage(p=>p+1)}
+                  style={{background:'var(--primary)',border:'none',borderRadius:10,padding:'10px 20px',
+                    color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',
+                    boxShadow:'0 4px 16px rgba(124,92,252,.3)'}}>
+                  Show More →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {xpPops.map(p=><div key={p.id} className="xp-pop" style={{left:p.x-30,top:p.y}}>+{p.amount} XP</div>)}
+      </div>
+    );
+  }
+
+  // --- RECIPE DETAIL ---
+  if (screen === "recipe" && currentRecipe) {
+    const r = currentRecipe;
+    return (
+      <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+        {toast && <div className="toast">{toast}</div>}
+        <div style={{padding:'16px 20px',display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>setScreen("results")} style={{background:'var(--surface2)',border:'none',
+            borderRadius:10,width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+          <span style={{fontSize:12,color:'var(--text3)',fontWeight:600}}>
+            {CUISINE_EMOJIS[r.c]} {r.c}
+          </span>
+        </div>
+
+        <div style={{padding:'0 20px 32px'}}>
+          <h2 className="fade-up" style={{fontSize:22,fontWeight:800,marginBottom:16,lineHeight:1.3}}>{r.t}</h2>
+
+          {/* Match Score */}
+          <div className="fade-up" style={{background:'var(--surface)',borderRadius:14,padding:16,marginBottom:16,
+            display:'flex',alignItems:'center',gap:14,animationDelay:'.1s'}}>
+            <div style={{width:50,height:50,borderRadius:12,background:'linear-gradient(135deg,var(--accent3),#2ecc71)',
+              display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,fontWeight:800}}>
+              {r.matchCount}/{r.totalIngs}
+            </div>
+            <div>
+              <div style={{fontWeight:700,fontSize:14}}>Ingredient Match</div>
+              <div style={{fontSize:12,color:'var(--text3)'}}>
+                You have {r.matchCount} of {r.totalIngs} ingredients needed
+              </div>
+            </div>
+          </div>
+
+          {/* Ingredients */}
+          <div className="fade-up" style={{background:'var(--surface)',borderRadius:14,padding:16,marginBottom:16,
+            animationDelay:'.15s'}}>
+            <h3 style={{fontSize:14,fontWeight:700,marginBottom:12,color:'var(--text2)'}}>🥘 Ingredients</h3>
+            {(r.i||[]).map((ing, i) => {
+              const matched = ingredients.some(ui => ing.toLowerCase().includes(ui));
+              return (
+                <div key={i} style={{padding:'8px 0',borderBottom:i<(r.i||[]).length-1?'1px solid var(--surface3)':'none',
+                  display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{color:matched?'var(--accent3)':'var(--text3)',fontSize:14}}>
+                    {matched?'✅':'◻️'}
+                  </span>
+                  <span style={{fontSize:14,color:matched?'var(--text)':'var(--text2)'}}>{ing}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Directions */}
+          <div className="fade-up" style={{background:'var(--surface)',borderRadius:14,padding:16,marginBottom:20,
+            animationDelay:'.2s'}}>
+            <h3 style={{fontSize:14,fontWeight:700,marginBottom:12,color:'var(--text2)'}}>👨‍🍳 Directions</h3>
+            {(r.d||[]).map((step, i) => (
+              <div key={i} style={{display:'flex',gap:12,marginBottom:12}}>
+                <div style={{minWidth:28,height:28,borderRadius:8,background:'var(--surface3)',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,
+                  color:'var(--primary-light)'}}>{i+1}</div>
+                <p style={{fontSize:14,lineHeight:1.6,color:'var(--text2)',flex:1}}>{step}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={(e)=>markCooked(r)}
+              style={{flex:1,background:'linear-gradient(135deg,var(--accent3),#27ae60)',border:'none',
+                borderRadius:14,padding:'16px',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',
+                boxShadow:'0 6px 20px rgba(107,203,119,.3)'}}>
+              ✅ I Cooked This!
+            </button>
+            <button onClick={()=>{
+              setUserStats(prev=>({...prev,favoriteRecipes:[...prev.favoriteRecipes,r.t]}));
+              showToast("Saved to favorites!");addXP(5);
+            }} style={{width:54,background:'var(--surface2)',border:'none',borderRadius:14,
+              color:'var(--accent)',fontSize:22,cursor:'pointer'}}>♥</button>
+          </div>
+        </div>
+        {xpPops.map(p=><div key={p.id} className="xp-pop" style={{left:p.x-30,top:p.y}}>+{p.amount} XP</div>)}
+        {newBadge && <BadgePopup badge={newBadge} onClose={()=>setNewBadge(null)}/>}
+      </div>
+    );
+  }
+
+  // --- PROFILE SCREEN ---
+  if (screen === "profile") return (
+    <div style={{minHeight:'100vh'}}>
+      {toast && <div className="toast">{toast}</div>}
+      <div style={{padding:'16px 20px',display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>setScreen("home")} style={{background:'var(--surface2)',border:'none',
+          borderRadius:10,width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+        <h2 style={{fontSize:18,fontWeight:700}}>Chef Profile</h2>
+      </div>
+
+      <div style={{padding:'0 20px 32px'}}>
+        {/* Level Card */}
+        <div className="fade-up" style={{background:'linear-gradient(135deg,var(--primary-dark),var(--primary))',
+          borderRadius:20,padding:24,marginBottom:16,textAlign:'center'}}>
+          <div style={{fontSize:56,marginBottom:8}}>{level.emoji}</div>
+          <div style={{fontSize:12,textTransform:'uppercase',letterSpacing:2,opacity:.6}}>Level {levelIdx+1}</div>
+          <h3 style={{fontSize:24,fontWeight:800,marginBottom:12}}>{level.name}</h3>
+          <div style={{height:8,background:'rgba(255,255,255,.2)',borderRadius:4,overflow:'hidden',maxWidth:200,margin:'0 auto'}}>
+            <div style={{height:'100%',width:getXPProgress()+'%',background:'#fff',borderRadius:4,transition:'width .5s'}}/>
+          </div>
+          <div style={{fontSize:12,marginTop:6,opacity:.7}}>
+            {userStats.xp} / {levelIdx<LEVELS.length-1?LEVELS[levelIdx+1].xp:'MAX'} XP
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+          {[
+            {icon:"🔥",val:userStats.streak,label:"Day Streak",color:"var(--accent)"},
+            {icon:"🍽️",val:userStats.recipesCooked,label:"Recipes Cooked",color:"var(--accent3)"},
+            {icon:"🔍",val:userStats.searches,label:"Searches",color:"var(--accent4)"},
+            {icon:"🏅",val:userStats.earnedBadges.length+"/"+BADGES.length,label:"Badges",color:"var(--accent2)"},
+          ].map((s,i) => (
+            <div key={i} className="fade-up" style={{background:'var(--surface)',borderRadius:14,padding:16,
+              textAlign:'center',animationDelay:(i*0.05)+'s'}}>
+              <span style={{fontSize:28}}>{s.icon}</span>
+              <div style={{fontSize:24,fontWeight:800,color:s.color,marginTop:4}}>{s.val}</div>
+              <div style={{fontSize:11,color:'var(--text3)',fontWeight:600}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Cuisine Breakdown */}
+        {Object.keys(userStats.cuisineCount).length > 0 && (
+          <div className="fade-up" style={{background:'var(--surface)',borderRadius:14,padding:16,marginBottom:16,
+            animationDelay:'.2s'}}>
+            <h3 style={{fontSize:13,fontWeight:700,color:'var(--text3)',marginBottom:12}}>CUISINE BREAKDOWN</h3>
+            {Object.entries(userStats.cuisineCount).sort((a,b)=>b[1]-a[1]).map(([c,n]) => (
+              <div key={c} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                <span style={{fontSize:20,width:28}}>{CUISINE_EMOJIS[c]||'🍴'}</span>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:3}}>
+                    <span style={{fontWeight:600}}>{c}</span>
+                    <span style={{color:'var(--text3)'}}>{n} dishes</span>
+                  </div>
+                  <div style={{height:6,background:'var(--surface3)',borderRadius:3,overflow:'hidden'}}>
+                    <div style={{height:'100%',
+                      width:((n/Math.max(...Object.values(userStats.cuisineCount)))*100)+'%',
+                      background:CUISINE_COLORS[c]||'#888',borderRadius:3,transition:'width .5s'}}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Top Ingredients */}
+        {Object.keys(userStats.ingredientFreq).length > 0 && (
+          <div className="fade-up" style={{background:'var(--surface)',borderRadius:14,padding:16,
+            animationDelay:'.25s'}}>
+            <h3 style={{fontSize:13,fontWeight:700,color:'var(--text3)',marginBottom:12}}>YOUR GO-TO INGREDIENTS</h3>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {Object.entries(userStats.ingredientFreq).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([ing,n]) => (
+                <span key={ing} style={{background:'var(--surface3)',borderRadius:8,padding:'6px 10px',
+                  fontSize:12,fontWeight:500}}>
+                  {ing} <span style={{color:'var(--text3)'}}>×{n}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      {newBadge && <BadgePopup badge={newBadge} onClose={()=>setNewBadge(null)}/>}
+    </div>
+  );
+
+  // --- BADGES SCREEN ---
+  if (screen === "badges") return (
+    <div style={{minHeight:'100vh'}}>
+      <div style={{padding:'16px 20px',display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>setScreen("home")} style={{background:'var(--surface2)',border:'none',
+          borderRadius:10,width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center'}}>←</button>
+        <h2 style={{fontSize:18,fontWeight:700}}>🏅 Badges</h2>
+        <span style={{fontSize:13,color:'var(--text3)',marginLeft:'auto'}}>
+          {userStats.earnedBadges.length}/{BADGES.length}
+        </span>
+      </div>
+      <div style={{padding:'0 20px 32px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        {BADGES.map((b, i) => {
+          const earned = userStats.earnedBadges.includes(b.id);
+          return (
+            <div key={b.id} className="fade-up" style={{animationDelay:(i*0.04)+'s',
+              background:earned?'var(--surface)':'var(--surface)',borderRadius:14,padding:16,
+              textAlign:'center',opacity:earned?1:.4,position:'relative',overflow:'hidden'}}>
+              {earned && <div style={{position:'absolute',top:8,right:8,fontSize:10,
+                background:'var(--accent3)',borderRadius:6,padding:'2px 6px',color:'#fff',fontWeight:700}}>✓</div>}
+              <div style={{fontSize:36,marginBottom:6,filter:earned?'none':'grayscale(1)'}}>{b.icon}</div>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{b.name}</div>
+              <div style={{fontSize:11,color:'var(--text3)'}}>{b.desc}</div>
+            </div>
+          );
+        })}
+      </div>
+      {newBadge && <BadgePopup badge={newBadge} onClose={()=>setNewBadge(null)}/>}
+    </div>
+  );
+
+  return null;
+}
+
+// ============================================
+// PHOTO TAG MODAL
+// ============================================
+function PhotoTagModal({ingredients, onAdd, onClose}) {
+  const [selected, setSelected] = useState([]);
+  const [search, setSearch] = useState("");
+
+  const filtered = COMMON_INGREDIENTS.filter(i =>
+    !ingredients.includes(i) && !selected.includes(i) &&
+    (!search || i.includes(search.toLowerCase()))
+  );
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',zIndex:100,
+      display:'flex',flexDirection:'column',animation:'fadeIn .2s ease'}}>
+      <div style={{padding:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <h3 style={{fontSize:18,fontWeight:700}}>📸 Tag Ingredients</h3>
+        <button onClick={onClose} style={{background:'var(--surface3)',border:'none',borderRadius:10,
+          width:36,height:36,color:'var(--text)',fontSize:18,cursor:'pointer'}}>×</button>
+      </div>
+      <div style={{padding:'0 20px'}}>
+        <p style={{fontSize:13,color:'var(--text2)',marginBottom:12}}>
+          Snap a photo of your fridge or pantry, then tap the ingredients you see:
+        </p>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search ingredients..."
+          style={{width:'100%',padding:'12px 14px',background:'var(--surface)',border:'2px solid var(--surface3)',
+            borderRadius:10,color:'var(--text)',fontSize:14,outline:'none',fontFamily:'inherit',marginBottom:12}}/>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'0 20px'}}>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+          {filtered.map(ing => {
+            const isSel = selected.includes(ing);
+            return (
+              <button key={ing} onClick={()=>setSelected(prev=>
+                isSel?prev.filter(i=>i!==ing):[...prev, ing]
+              )} style={{background:isSel?'var(--primary)':'var(--surface2)',border:'none',
+                borderRadius:10,padding:'10px 14px',color:isSel?'#fff':'var(--text2)',fontSize:13,
+                fontWeight:500,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}}>
+                {isSel?'✓ ':''}{ing}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{padding:20}}>
+        <button onClick={()=>{selected.forEach(onAdd);onClose()}}
+          style={{width:'100%',padding:16,background:selected.length>0?
+            'linear-gradient(135deg,var(--primary),var(--primary-light))':'var(--surface3)',
+            border:'none',borderRadius:14,color:selected.length>0?'#fff':'var(--text3)',
+            fontSize:15,fontWeight:700,cursor:selected.length>0?'pointer':'default',fontFamily:'inherit'}}>
+          Add {selected.length} Ingredient{selected.length!==1?'s':''}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// BADGE POPUP
+// ============================================
+function BadgePopup({badge, onClose}) {
+  return (
+    <div className="level-up-overlay" onClick={onClose}>
+      <div className="level-up-card" onClick={e=>e.stopPropagation()}
+        style={{background:'linear-gradient(135deg,#2c2c3e,#3a3a5c)'}}>
+        <h2 style={{color:'var(--accent2)'}}>Badge Unlocked!</h2>
+        <div style={{fontSize:64,margin:'12px 0'}}>{badge.icon}</div>
+        <div className="level-title">{badge.name}</div>
+        <p style={{fontSize:13,opacity:.7,marginBottom:16}}>{badge.desc}</p>
+        <button onClick={onClose}>Awesome!</button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// RENDER
+// ============================================
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
