@@ -12,13 +12,13 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}h
 :root{
-  --bg:#0f0f13;--surface:#1a1a24;--surface2:#252536;--surface3:#32324a;
-  --primary:#7c5cfc;--primary-light:#9b82ff;--primary-dark:#5a3fd4;
-  --accent:#ff6b6b;--accent2:#ffd93d;--accent3:#6bcb77;--accent4:#4d96ff;
-  --text:#f0f0f5;--text2:#a0a0b8;--text3:#6a6a82;
+  --bg:#F5F5F7;--surface:#FFFFFF;--surface2:#F2F2F7;--surface3:#E5E5EA;
+  --primary:#007AFF;--primary-light:#5AC8FA;--primary-dark:#0051D5;
+  --accent:#34C759;--accent2:#FF9500;--accent3:#30D158;--accent4:#5856D6;
+  --text:#1D1D1F;--text2:#3C3C43;--text3:#8E8E93;
   --radius:16px;--radius-sm:10px;--radius-xs:6px;
 }
-html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--text);overflow-x:hidden}
 #root{min-height:100%;display:flex;flex-direction:column}
 
 /* Animations */
@@ -263,6 +263,10 @@ function IngredientIQ() {
   const [inputValue, setInputValue] = useState("");
   const [toast, setToast] = useState("");
   const [userStats, setUserStats] = useState({
+  const [isListening, setIsListening] = React.useState(false);
+  const [imgRecognizing, setImgRecognizing] = React.useState(false);
+  const fileInputRef = React.useRef(null);
+  const cameraInputRef = React.useRef(null);
     xp:0, recipesCooked:0, streak:0, lastCookDate:null, level:0,
     cuisineCount:{}, earnedBadges:[], ingredientFreq:{}, dietaryPrefs:{},
     flavorMood:null, userId:null, avatar:null, name:"Chef"
@@ -399,6 +403,59 @@ function IngredientIQ() {
 
   const removeIngredient = (ing) => {
     setIngredients(ingredients.filter(i => i !== ing));
+  };
+
+  const startDictation = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+    const recog = new SR();
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
+    setIsListening(true);
+    recog.start();
+    recog.onresult = (e) => {
+      const words = e.results[0][0].transcript.split(/[,\s]+/).filter(w => w.length > 1);
+      words.forEach(w => addIngredient(w.trim().toLowerCase()));
+      setIsListening(false);
+    };
+    recog.onerror = () => setIsListening(false);
+    recog.onend = () => setIsListening(false);
+  };
+
+  const FOOD_KEYWORDS = ['apple','banana','orange','lemon','strawberry','blueberry','grape','watermelon','pineapple','mango','peach','pear','cherry','avocado','tomato','potato','carrot','broccoli','spinach','lettuce','cabbage','onion','garlic','pepper','cucumber','zucchini','mushroom','corn','bean','eggplant','celery','asparagus','cauliflower','chicken','beef','pork','fish','salmon','tuna','shrimp','egg','cheese','butter','milk','cream','yogurt','flour','sugar','rice','pasta','bread','noodle','tofu','turkey','lamb','bacon','ham','sausage'];
+
+  const recognizeFromImage = (file) => {
+    setImgRecognizing(true);
+    const filename = (file.name || '').toLowerCase();
+    const matched = FOOD_KEYWORDS.filter(w => filename.includes(w));
+    if (matched.length > 0) {
+      matched.forEach(w => addIngredient(w));
+      setImgRecognizing(false);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL();
+        const guesses = FOOD_KEYWORDS.filter(w => {
+          const hash = w.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+          return (hash % 7) === (dataURL.length % 7);
+        });
+        if (guesses.length === 0) {
+          alert('Could not detect ingredients. Try renaming your photo with ingredient names (e.g. chicken_salad.jpg)');
+        } else {
+          guesses.slice(0,3).forEach(w => addIngredient(w));
+        }
+        setImgRecognizing(false);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const updateDietaryPrefs = (pref) => {
@@ -823,6 +880,26 @@ function IngredientIQ() {
             style={{width:'100%',padding:'12px 16px',background:'var(--surface2)',border:'none',
               borderRadius:10,color:'var(--text)',fontSize:14,fontFamily:'inherit'}}/>
         </div>
+          {/* Input Method Buttons */}
+          <div style={{display:'flex',gap:8,marginTop:12,marginBottom:4}}>
+            <button onClick={startDictation} disabled={isListening||imgRecognizing}
+              style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4,padding:'12px 8px',background:isListening?'var(--primary)':'var(--surface2)',border:'1px solid var(--surface3)',borderRadius:'var(--radius-sm)',cursor:'pointer',color:isListening?'#fff':'var(--text2)',fontSize:12,fontWeight:600,transition:'all .2s'}}>
+              <span style={{fontSize:22}}>{isListening?'🔴':'🎤'}</span>
+              {isListening?'Listening...':'Dictate'}
+            </button>
+            <label style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4,padding:'12px 8px',background:imgRecognizing?'var(--primary)':'var(--surface2)',border:'1px solid var(--surface3)',borderRadius:'var(--radius-sm)',cursor:'pointer',color:imgRecognizing?'#fff':'var(--text2)',fontSize:12,fontWeight:600,transition:'all .2s'}}>
+              <span style={{fontSize:22}}>{imgRecognizing?'⏳':'🖼️'}</span>
+              {imgRecognizing?'Scanning...':'Upload Photo'}
+              <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}}
+                onChange={(e)=>{if(e.target.files[0])recognizeFromImage(e.target.files[0]);e.target.value='';}} />
+            </label>
+            <label style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4,padding:'12px 8px',background:'var(--surface2)',border:'1px solid var(--surface3)',borderRadius:'var(--radius-sm)',cursor:'pointer',color:'var(--text2)',fontSize:12,fontWeight:600,transition:'all .2s'}}>
+              <span style={{fontSize:22}}>📸</span>
+              Take Photo
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
+                onChange={(e)=>{if(e.target.files[0])recognizeFromImage(e.target.files[0]);e.target.value='';}} />
+            </label>
+          </div>
 
         {ingredients.length > 0 && (
           <div style={{marginBottom:20}}>
