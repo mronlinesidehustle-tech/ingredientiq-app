@@ -334,6 +334,16 @@ function IngredientIQ() {
   };
 
   const signInWithGoogle = async () => {
+    // Lazy-init: attempt Supabase init if not yet done (handles CDN timing)
+    if (!supabaseReady) {
+      try {
+        const lib = window._supabaseLib;
+        if (lib && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+          supabase = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          supabaseReady = true;
+        }
+      } catch(e) { console.log('Lazy init failed:', e.message); }
+    }
     if (!supabaseReady || !supabase) {
       showToast("Supabase not configured yet");
       return;
