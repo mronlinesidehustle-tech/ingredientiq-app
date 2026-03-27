@@ -290,6 +290,15 @@ function IngredientIQ() {
 
   // Check Supabase auth on mount
   useEffect(() => {
+    if (!supabaseReady) {
+      try {
+        const _lib = window._supabaseLib;
+        if (_lib && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+          supabase = _lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          supabaseReady = true;
+        }
+      } catch(e) { console.log('useEffect init:', e.message); }
+    }
     if (!supabaseReady) return;
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
