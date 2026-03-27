@@ -134,11 +134,12 @@ const {useState,useEffect,useRef,useCallback,useMemo} = React;
 const SUPABASE_URL = 'https://ydyozxpxbqvhhkwkxzfy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkeW96eHB4YnF2aGhrd2t4emZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NTYwMTQsImV4cCI6MjA5MDAzMjAxNH0.2tfnw7Y4BH3LioaBkWrwPXSO5PWFO9aRym0ZRP-jwmE';
 
+const _supabaseLib = window.supabase; // save ref before Babel shadows window.supabase
 let supabase = null;
 let supabaseReady = false;
 try {
   if (SUPABASE_URL !== 'https://ydyozxpxbqvhhkwkxzfy.supabase.co' && SUPABASE_ANON_KEY !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkeW96eHB4YnF2aGhrd2t4emZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NTYwMTQsImV4cCI6MjA5MDAzMjAxNH0.2tfnw7Y4BH3LioaBkWrwPXSO5PWFO9aRym0ZRP-jwmE') {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabase = _supabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     supabaseReady = true;
   }
 } catch (e) {
