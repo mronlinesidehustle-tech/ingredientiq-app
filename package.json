@@ -1,0 +1,10 @@
+{
+    "name": "ingredientiq",
+    "version": "1.0.0",
+    "description": "Smart recipe matcher",
+    "scripts": {
+          "start": "npx serve public",
+          "build": "echo Static site"
+    },
+    "private": true
+}
